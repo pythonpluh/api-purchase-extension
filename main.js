@@ -1,16 +1,26 @@
 // ==UserScript==
 // @name         api purchase
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  direct api call for purchasing
 // @author       pythonplugin
-// @match        https://www.pekora.zip/catalog/*
+// @match        https://www.pekora.zip/*
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    let observer = null;
+    let retryTimer = null;
+
+    let lastUrl = location.href;
+
+    const info = {
+        version: '1.1',
+        author: '@pythonplugin',
+    };
 
     // helpers
     const getItemId = () => {
@@ -118,45 +128,70 @@
 
     const purchase_button = () => {
         const id = getItemId();
-        if (!id) return;
+        if (!id) return false;
 
-        // this is disgusting and makes me want to kill myself
-        const container =
-              document.querySelector('.buyBtnContainer-0-2-58') ||
-              document.querySelector('.newBuyButton-0-2-153')?.parentElement ||
-              document.querySelector('.buyBtn-0-2-116')?.parentElement ||
-              document.querySelector('.newBuyButton-0-2-93')?.parentElement ||
-              document.querySelector('.buyBtn-0-2-56')?.parentElement;
+        if (document.querySelector('#bypbtn')) return true;
 
-        if (!container) return;
+        const buyButton =
+            document.querySelector('button.newBuyButton-0-2-58') ||
+            document.querySelector('button[class*="newBuyButton"]') ||
+            document.querySelector('button[class*="buyBtn"]');
 
-        let btn = document.querySelector('#bypbtn');
-
-        const price = getPrice();
-
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.id = 'bypbtn';
-            btn.type = 'button';
-
-            btn.textContent = 'api buy';
-            btn.className = 'btn-0-2-219 editBtn-0-2-57 buyBtn-0-2-56 newCancelButton-0-2-96';
-            btn.style.cssText += `
-                background: rgb(0, 167, 107) !important;
-                color: white !important;
-                margin-top: 6px;
-            `;
-
-            btn.onmouseenter = () => {
-                if (!btn.disabled) btn.style.background = 'rgb(0,153,99)';
-            };
-
-            btn.onmouseleave = () => {
-                if (!btn.disabled) btn.style.background = 'rgb(0,167,107)';
-            };
-
-            container.appendChild(btn);
+        if (!buyButton) {
+            return false;
         }
+
+        if (buyButton.classList.contains('newCancelButton-0-2-61') ||
+            buyButton.textContent.toLowerCase().includes('edit avatar')) {
+            return true;
+        }
+
+        if (buyButton.disabled) {
+            return true;
+        }
+
+        const container = buyButton.parentElement;
+        if (!container) {
+            return false;
+        }
+
+        const btn = document.createElement('button');
+        btn.id = 'bypbtn';
+        btn.type = 'button';
+        btn.textContent = 'api buy';
+
+        btn.style.cssText = `
+            background: rgb(0, 167, 107) !important;
+            color: white !important;
+            margin-top: 6px;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-family: "Gotham SSm A", "Gotham SSm B", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            height: 38px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: background 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        btn.onmouseenter = () => {
+            if (!btn.disabled) {
+                btn.style.background = 'rgb(0, 153, 99) !important';
+            }
+        };
+
+        btn.onmouseleave = () => {
+            if (!btn.disabled) {
+                btn.style.background = 'rgb(0, 167, 107) !important';
+            }
+        };
 
         btn.onclick = async (e) => {
             e.preventDefault();
@@ -165,69 +200,134 @@
             btn.disabled = true;
 
             btn.textContent = 'processing...';
-            btn.style.background = '#777';
+
+            btn.style.background = '#777 !important';
+            btn.style.cursor = 'not-allowed';
 
             try {
-                await purchase(id, price);
+                const currentId = getItemId();
+                const currentPrice = getPrice();
+                
+                await purchase(currentId, currentPrice);
             } finally {
                 btn.disabled = false;
+
                 btn.textContent = 'api buy';
-                btn.style.background = 'rgb(0,167,107)';
+
+                btn.style.background = 'rgb(0, 167, 107) !important';
+                btn.style.cursor = 'pointer';
             }
         };
+
+        container.appendChild(btn);
+        return true;
     };
 
     // init
-    const init = () => {
-        const container = document.querySelector('.buyBtnContainer-0-2-58');
-        if (container && !document.querySelector('#bypbtn')) purchase_button();
+    const start_retry = () => {
+        if (retryTimer) {
+            clearTimeout(retryTimer);
+            retryTimer = null;
+        }
+
+        let attempts = 0;
+        const maxAttempts = 20;
+
+        const retry = () => {
+            const id = getItemId();
+
+            if (!id) {
+                return;
+            }
+
+            const success = purchase_button();
+
+            if (success) {
+                return;
+            }
+
+            attempts++;
+
+            if (attempts < maxAttempts) {
+                retryTimer = setTimeout(retry, 300);
+            }
+        };
+
+        retry();
+    };
+
+    const monitor_button = () => {
+        if (observer) {
+            observer.disconnect();
+        }
+
+        observer = new MutationObserver(() => {
+            const id = getItemId();
+
+            if (id && !document.querySelector('#bypbtn')) {
+                purchase_button();
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
     };
 
     const history_navigation = () => {
         const pushState = history.pushState;
         const replaceState = history.replaceState;
 
-        const handleChange = () => {
+        const handler = () => {
+            const currentUrl = location.href;
+            if (currentUrl === lastUrl) return;
+
+            lastUrl = currentUrl;
+
             setTimeout(() => {
-                init();
-                monitor_button();
-            }, 300);
+                start_retry();
+            }, 100);
         };
 
         history.pushState = function (...args) {
             pushState.apply(this, args);
-            handleChange();
+            handler();
         };
 
         history.replaceState = function (...args) {
             replaceState.apply(this, args);
-            handleChange();
+            handler();
         };
 
-        window.addEventListener('popstate', handleChange);
+        window.addEventListener('popstate', handler);
     };
 
-    const monitor_button = () => {
-        const observer = new MutationObserver(() => {
-            purchase_button();
-        });
+    // setup    
+    console.log(`
+                                                                                                                                            
+                            ██                                                       ▄▄                                                         
+                            ▀▀                                                       ██                                                         
+      ▄█████▄  ██▄███▄    ████               ██▄███▄   ██    ██   ██▄████   ▄█████▄  ██▄████▄   ▄█████▄  ▄▄█████▄   ▄████▄    ██▄████           
+      ▀ ▄▄▄██  ██▀  ▀██     ██               ██▀  ▀██  ██    ██   ██▀      ██▀    ▀  ██▀   ██   ▀ ▄▄▄██  ██▄▄▄▄ ▀  ██▄▄▄▄██   ██▀               
+     ▄██▀▀▀██  ██    ██     ██               ██    ██  ██    ██   ██       ██        ██    ██  ▄██▀▀▀██   ▀▀▀▀██▄  ██▀▀▀▀▀▀   ██                
+     ██▄▄▄███  ███▄▄██▀  ▄▄▄██▄▄▄            ███▄▄██▀  ██▄▄▄███   ██       ▀██▄▄▄▄█  ██    ██  ██▄▄▄███  █▄▄▄▄▄██  ▀██▄▄▄▄█   ██                
+      ▀▀▀▀ ▀▀  ██ ▀▀▀    ▀▀▀▀▀▀▀▀            ██ ▀▀▀     ▀▀▀▀ ▀▀   ▀▀         ▀▀▀▀▀   ▀▀    ▀▀   ▀▀▀▀ ▀▀   ▀▀▀▀▀▀     ▀▀▀▀▀    ▀▀                
+               ██                            ██                                                                                                 
 
-        observer.observe(document.body, { childList: true, subtree: true });
-    };
+    `);
+    
+    console.log(`%cversion: %c${info.version}`, 'color: #00a76b; font-weight: bold;', 'color: #ffffff;');
+    console.log(`%cauthor: %c${info.author}`, 'color: #00a76b; font-weight: bold;', 'color: #ffffff;');
+    console.log(`%ccompile time: %c${(performance.now() / 1000).toFixed(3)} seconds`, 'color: #00a76b; font-weight: bold;', 'color: #ffffff;');
+    console.log('%cAPI purchase loaded successfully', 'color: #00a76b; font-weight: bold;');
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            init();
+            start_retry();
             monitor_button();
         });
     } else {
-        init();
+        start_retry();
         monitor_button();
     }
-
-    setTimeout(init, 500);
-    setTimeout(init, 1000);
-    setTimeout(init, 2000);
 
     history_navigation();
 })();
