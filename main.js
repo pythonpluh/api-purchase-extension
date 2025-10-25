@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         api purchase
 // @namespace    http://tampermonkey.net/
-// @version      1.15
+// @version      1.151
 // @description  direct api call for purchasing
 // @author       pythonplugin
 // @match        https://www.pekora.zip/*
@@ -18,7 +18,7 @@
     let lastUrl = location.href;
 
     const info = {
-        version: '1.15',
+        version: '1.151',
         author: '@pythonplugin',
     };
 
@@ -51,6 +51,16 @@
         const m = text.match(/\d+/);
 
         return m ? parseInt(m[0]) : 0;
+    };
+
+    const getSellerId = () => {
+        const sellerLink = document.querySelector('a[href*="/User.aspx?ID="]');
+        if (sellerLink) {
+            const match = sellerLink.href.match(/ID=(\d+)/);
+            if (match) return parseInt(match[1]);
+        }
+
+        return 1;
     };
 
     // main
@@ -113,7 +123,7 @@
                 body: JSON.stringify({
                     assetId: parseInt(id),
                     expectedPrice: price,
-                    expectedSellerId: 1,
+                    expectedSellerId: getSellerId(),
                     userAssetId: null,
                     expectedCurrency: 1
                 })
