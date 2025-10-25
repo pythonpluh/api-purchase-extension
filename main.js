@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         api purchase
 // @namespace    http://tampermonkey.net/
-// @version      1.151
+// @version      1.152
 // @description  direct api call for purchasing
 // @author       pythonplugin
 // @match        https://www.pekora.zip/*
@@ -18,7 +18,7 @@
     let lastUrl = location.href;
 
     const info = {
-        version: '1.151',
+        version: '1.152',
         author: '@pythonplugin',
     };
 
@@ -42,16 +42,15 @@
     };
 
     const getPrice = () => {
-        const label = document.querySelector('.priceLabel-0-2-61');
+        const label = document.querySelector('.priceLabel-0-2-61') ||
+                      document.querySelector('[class*="priceLabel"]');
         if (!label) return 0;
-
-        const text = label.textContent.trim().toLowerCase();
-        if (text.includes('free')) return 0;
-
-        const m = text.match(/\d+/);
-
-        return m ? parseInt(m[0]) : 0;
-    };
+    
+        const text = label.textContent.trim();
+    
+        const cleaned = text.replace(/[^\d]/g, '');
+        return cleaned ? parseInt(cleaned, 10) : 0;
+    };    
 
     const getSellerId = () => {
         const sellerLink = document.querySelector('a[href*="/User.aspx?ID="]');
@@ -106,41 +105,46 @@
 
     const purchase = async (id, price = 0) => {
         const csrf = getCsrf();
-
+    
         try {
             const res = await fetch(`https://www.pekora.zip/apisite/economy/v1/purchases/products/${id}`, {
                 method: 'POST',
+                mode: 'same-origin',
+                credentials: 'include',
 
                 headers: {
-                    'Accept': 'application/json, text/plain, */*',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf || '',
-                    'Referer': window.location.href
+                    'accept': 'application/json, text/plain, */*',
+                    'content-type': 'application/json;charset=UTF-8',
+                    'x-csrf-token': csrf,
+                    'referer': location.href,
+                    'origin': 'https://www.pekora.zip'
                 },
-
-                credentials: 'include',
 
                 body: JSON.stringify({
                     assetId: parseInt(id),
                     expectedPrice: price,
                     expectedSellerId: getSellerId(),
-                    userAssetId: null,
-                    expectedCurrency: 1
+                    expectedCurrency: 1,
+                    userAssetId: null
                 })
             });
-
-            const data = await res.json();
-
-            if (res.ok) {
+    
+            const text = await res.text();
+            
+            let data = {};
+            try { data = JSON.parse(text); } catch {}
+            
+            if (res.ok && data.purchased) {
                 notify('purchase successful');
                 setTimeout(() => location.reload(), 1500);
             } else {
-                notify(`failed: ${data.message || JSON.stringify(data)}`, false);
+                notify(`failed: ${data.reason || text}`, false);
             }
         } catch (err) {
             notify(`failed: ${err.message}`, false);
         }
     };
+    
 
     const purchase_button = () => {
         const id = getItemId();
