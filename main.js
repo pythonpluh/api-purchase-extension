@@ -120,10 +120,13 @@
         const id = getItemId();
         if (!id) return;
 
+        // this is disgusting and makes me want to kill myself
         const container =
-            document.querySelector('.buyBtnContainer-0-2-58') ||
-            document.querySelector('.newBuyButton-0-2-153')?.parentElement ||
-            document.querySelector('.buyBtn-0-2-116')?.parentElement;
+              document.querySelector('.buyBtnContainer-0-2-58') ||
+              document.querySelector('.newBuyButton-0-2-153')?.parentElement ||
+              document.querySelector('.buyBtn-0-2-116')?.parentElement ||
+              document.querySelector('.newBuyButton-0-2-93')?.parentElement ||
+              document.querySelector('.buyBtn-0-2-56')?.parentElement;
 
         if (!container) return;
 
