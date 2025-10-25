@@ -1,2 +1,4 @@
-# api-purchase-extension
-direct api call for purchasing for korone, without any client-sided checks.
+[tampermonkey](https://www.tampermonkey.net/)
+[installation guide](https://www.youtube.com/watch?v=pJEwz2rq90I)
+
+enjoy
