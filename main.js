@@ -9,7 +9,7 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     // helpers
@@ -58,7 +58,7 @@
             border: 1px solid ${ok ? '#009963' : '#9b2f2f'};
             font-family: "Gotham SSm A", "Gotham SSm B", "Helvetica Neue", Helvetica, Arial, sans-serif;
             font-size: 13px;
-            font-weight: 700;
+            font-weight: 400;
             padding: 8px 16px;
             height: 32px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
@@ -118,7 +118,7 @@
 
     const purchase_button = () => {
         const id = getItemId();
-        if (!id || document.querySelector('#bypbtn')) return;
+        if (!id) return;
 
         const container =
             document.querySelector('.buyBtnContainer-0-2-58') ||
@@ -127,43 +127,51 @@
 
         if (!container) return;
 
-        const edit_avatar = container.querySelector('button');
-        if (edit_avatar?.textContent.trim().toLowerCase() === 'edit avatar') return;
+        let btn = document.querySelector('#bypbtn');
 
         const price = getPrice();
 
-        const btn = document.createElement('button');
-        btn.id = 'bypbtn';
-        btn.type = 'button';
-        btn.textContent = 'api buy';
-        btn.className = 'btn-0-2-219 editBtn-0-2-57 buyBtn-0-2-56 newCancelButton-0-2-96';
-        btn.style.cssText += `
-            background: rgb(0, 167, 107) !important;
-            color: white !important;
-            margin-top: 6px; /* add vertical spacing below native button */
-        `;
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'bypbtn';
+            btn.type = 'button';
 
-        btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = 'rgb(0,153,99)'; };
-        btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = 'rgb(0,167,107)'; };
+            btn.textContent = 'api buy';
+            btn.className = 'btn-0-2-219 editBtn-0-2-57 buyBtn-0-2-56 newCancelButton-0-2-96';
+            btn.style.cssText += `
+                background: rgb(0, 167, 107) !important;
+                color: white !important;
+                margin-top: 6px;
+            `;
+
+            btn.onmouseenter = () => {
+                if (!btn.disabled) btn.style.background = 'rgb(0,153,99)';
+            };
+
+            btn.onmouseleave = () => {
+                if (!btn.disabled) btn.style.background = 'rgb(0,167,107)';
+            };
+
+            container.appendChild(btn);
+        }
 
         btn.onclick = async (e) => {
             e.preventDefault();
-            if (btn.disabled) return;
 
+            if (btn.disabled) return;
             btn.disabled = true;
+
             btn.textContent = 'processing...';
             btn.style.background = '#777';
 
             try {
-                await purchase(id, getPrice());
+                await purchase(id, price);
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'api buy';
                 btn.style.background = 'rgb(0,167,107)';
             }
         };
-
-        container.appendChild(btn);
     };
 
     // init
@@ -179,16 +187,16 @@
         const handleChange = () => {
             setTimeout(() => {
                 init();
-                waitForContainerAndAdd();
+                monitor_button();
             }, 300);
         };
 
-        history.pushState = function(...args) {
+        history.pushState = function (...args) {
             pushState.apply(this, args);
             handleChange();
         };
 
-        history.replaceState = function(...args) {
+        history.replaceState = function (...args) {
             replaceState.apply(this, args);
             handleChange();
         };
@@ -198,12 +206,7 @@
 
     const monitor_button = () => {
         const observer = new MutationObserver(() => {
-            const container = document.querySelector('.buyBtnContainer-0-2-58');
-
-            if (container && !document.querySelector('#bypbtn')) {
-                purchase_button();
-                observer.disconnect();
-            }
+            purchase_button();
         });
 
         observer.observe(document.body, { childList: true, subtree: true });
