@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         api purchase
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.15
 // @description  direct api call for purchasing
 // @author       pythonplugin
 // @match        https://www.pekora.zip/*
@@ -18,7 +18,7 @@
     let lastUrl = location.href;
 
     const info = {
-        version: '1.1',
+        version: '1.15',
         author: '@pythonplugin',
     };
 
@@ -57,35 +57,41 @@
     const notify = (msg, ok = true) => {
         const toast = document.createElement('div');
         toast.textContent = msg;
+
         toast.style.cssText = `
             position: fixed;
-            top: 20px;
-            right: -300px;
+            bottom: -60px;
+            right: 20px;
             z-index: 9999;
-            background: ${ok ? '#00a76b' : '#c34242'};
+            background: ${ok ? 'rgba(0, 167, 107, 0.95)' : 'rgba(195, 66, 66, 0.95)'};
+            backdrop-filter: blur(6px);
             color: white;
-            padding: 10px 16px;
+            padding: 12px 18px;
+            border-radius: 8px;
             border: 1px solid ${ok ? '#009963' : '#9b2f2f'};
             font-family: "Gotham SSm A", "Gotham SSm B", "Helvetica Neue", Helvetica, Arial, sans-serif;
             font-size: 13px;
-            font-weight: 400;
-            padding: 8px 16px;
-            height: 32px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            transition: right 0.35s ease;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            transition: bottom 0.5s ease, opacity 0.4s ease;
+            opacity: 0;
             text-transform: lowercase;
         `;
 
         document.body.appendChild(toast);
 
         setTimeout(() => {
-            toast.style.right = '20px';
-        }, 100);
+            toast.style.bottom = '30px';
+            toast.style.opacity = '1';
+        }, 50);
 
         setTimeout(() => {
-            toast.style.right = '-300px';
-            setTimeout(() => toast.remove(), 400);
-        }, 3000);
+            toast.style.bottom = '-60px';
+            toast.style.opacity = '0';
+            
+            setTimeout(() => toast.remove(), 600);
+        }, 3500);
     };
 
     const purchase = async (id, price = 0) => {
@@ -137,23 +143,10 @@
             document.querySelector('button[class*="newBuyButton"]') ||
             document.querySelector('button[class*="buyBtn"]');
 
-        if (!buyButton) {
-            return false;
-        }
-
-        if (buyButton.classList.contains('newCancelButton-0-2-61') ||
-            buyButton.textContent.toLowerCase().includes('edit avatar')) {
-            return true;
-        }
-
-        if (buyButton.disabled) {
-            return true;
-        }
+        if (!buyButton || buyButton.disabled || buyButton.textContent.toLowerCase().includes('edit avatar')) return false;
 
         const container = buyButton.parentElement;
-        if (!container) {
-            return false;
-        }
+        if (!container) return false;
 
         const btn = document.createElement('button');
         btn.id = 'bypbtn';
@@ -165,31 +158,36 @@
             color: white !important;
             margin-top: 6px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             padding: 8px 16px;
             font-family: "Gotham SSm A", "Gotham SSm B", "Helvetica Neue", Helvetica, Arial, sans-serif;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             width: 100%;
-            height: 38px;
+            height: 40px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            transition: background 0.2s ease;
+            transition: all 0.25s ease;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         `;
 
         btn.onmouseenter = () => {
             if (!btn.disabled) {
                 btn.style.background = 'rgb(0, 153, 99) !important';
+                btn.style.transform = 'translateY(-1px)';
+                btn.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
             }
         };
 
         btn.onmouseleave = () => {
             if (!btn.disabled) {
                 btn.style.background = 'rgb(0, 167, 107) !important';
+                btn.style.transform = 'translateY(0)';
+                btn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
             }
         };
 
@@ -201,14 +199,14 @@
 
             btn.textContent = 'processing...';
 
-            btn.style.background = '#777 !important';
+            btn.style.background = '#888 !important';
             btn.style.cursor = 'not-allowed';
+            btn.style.opacity = '0.75';
+            btn.style.transform = 'scale(0.97)';
+            btn.style.boxShadow = 'none';
 
             try {
-                const currentId = getItemId();
-                const currentPrice = getPrice();
-                
-                await purchase(currentId, currentPrice);
+                await purchase(getItemId(), getPrice());
             } finally {
                 btn.disabled = false;
 
@@ -216,6 +214,9 @@
 
                 btn.style.background = 'rgb(0, 167, 107) !important';
                 btn.style.cursor = 'pointer';
+                btn.style.opacity = '1';
+                btn.style.transform = 'scale(1)';
+                btn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
             }
         };
 
